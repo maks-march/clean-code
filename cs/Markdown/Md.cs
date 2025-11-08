@@ -8,6 +8,7 @@ namespace Markdown
         // сохранить позиции их содержимого в Token-ы чтобы при сборке html
         // поочередно вставлять в StringBuilder html-тэги из токенов и исходный текст.
 
+        // В итоге получился довольно большой парсер, но идея работает
         public static string Render(string input)
         {
             var parser = new TokenParser();

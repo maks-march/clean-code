@@ -18,7 +18,7 @@ class Tags_Tests
         TestCase("#", "h1"),
         TestCase("_", "em"),
         TestCase("__", "strong"),
-        TestCase("*", "li")
+        TestCase("-", "li")
     ]
     public void Build_CorrectTag_OnCorrectMark(string mark, string correctName)
     {
