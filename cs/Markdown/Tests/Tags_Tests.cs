@@ -1,7 +1,7 @@
 using FluentAssertions;
 using NUnit.Framework;
 
-namespace Markdown;
+namespace Markdown.Tests;
 
 [TestFixture]
 class Tags_Tests
@@ -9,7 +9,7 @@ class Tags_Tests
     [Test]
     public void Build_Recognize_OnWrongMark()
     {
-        var act = () => HtmlTagFactory.BuildTag("1");
+        var act = () => TagFactory.BuildTag("1");
         act.Should().Throw();
     }
 
@@ -22,7 +22,7 @@ class Tags_Tests
     ]
     public void Build_CorrectTag_OnCorrectMark(string mark, string correctName)
     {
-        var tag = HtmlTagFactory.BuildTag(mark);
+        var tag = TagFactory.BuildTag(mark);
         var correctTag = new Tag(correctName);
 
         tag.Should().BeEquivalentTo(correctTag);
@@ -31,7 +31,7 @@ class Tags_Tests
     [Test]
     public void OpenCloseOutput_IsCorrect()
     {
-        var tag = HtmlTagFactory.BuildTag("#");
+        var tag = TagFactory.BuildTag("#");
         var text = tag.OpenTag + "text" + tag.CloseTag;
             
         text.Should().Be("<h1>text</h1>");

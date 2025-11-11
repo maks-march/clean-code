@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using FluentAssertions;
 using NUnit.Framework;
+using System.Text;
 
-namespace Markdown;
+namespace Markdown.Tests;
 
 [TestFixture]
 class Markdown_Tests
@@ -58,5 +60,31 @@ class Markdown_Tests
     public void Render_DifferentText(string actual, string expected)
     {
         Md.Render(actual).Should().Be(expected);
+    }
+
+    [Test]
+    public void EffiecencyTest()
+    {
+        var stopwatch = Stopwatch.StartNew();
+        Md.Render(StackString(10000));
+        stopwatch.Stop();
+        var time1 = stopwatch.ElapsedMilliseconds * 10 - 1000;
+        
+        stopwatch.Restart();
+        Md.Render(StackString(100000));
+        stopwatch.Stop();
+        var time2 = stopwatch.ElapsedMilliseconds;
+        time2.Should().BeLessThan(time1);
+    }
+
+    private string StackString(int times)
+    {
+        var sb = new StringBuilder();
+        for (int i = 0; i < 10000; i++)
+        {
+            sb.Append("__a");
+        }
+        sb.Append("__");
+        return sb.ToString();
     }
 }

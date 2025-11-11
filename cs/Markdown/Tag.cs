@@ -1,16 +1,13 @@
-namespace Markdown
+namespace Markdown;
+
+public class Tag
 {
+    public string Name { get; }
+    public string OpenTag => $"<{Name}>";
+    public string CloseTag => $"</{Name}>";
 
-    public class Tag
+    public Tag(string name)
     {
-        private string name;
-        public string Name { get { return name; } }
-        public string OpenTag => $"<{Name}>";
-        public string CloseTag => $"</{Name}>";
-
-        public Tag(string name)
-        {
-            this.name = name;
-        }
+        this.Name = name;
     }
 }
