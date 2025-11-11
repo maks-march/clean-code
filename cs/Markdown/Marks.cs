@@ -31,4 +31,11 @@ public static class Marks
                 throw new ArgumentException("Wrong name!");
         }
     }
+
+    public static int AfterMarkSpace(string mark)
+    {
+        if (mark == Header || mark == List)
+            return 1;
+        return 0;
+    }
 }

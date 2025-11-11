@@ -37,55 +37,92 @@ public class TokenParser
     {
         for (int i = 0; i < _text.Length; i++)
         {
-            var findedTag = FindTag(i);
-            if (findedTag != null)
+            if (_text[i] == '\n')
             {
-                // что то уже лежит
-                if (_tagStack.Count > 0)
+                foreach (var token in BuildTokensFromStack(i))
                 {
-                    var lastTag = _tagStack.Pop();
-                    if (lastTag.Name == findedTag.Name)
+                    yield return token;
+                }
+                continue;
+            }
+            
+            var findedTag = FindTag(i);
+            if (findedTag == null)
+                continue;
+            
+            // что-то уже лежит
+            if (_tagStack.Count > 0)
+            {
+                var lastTag = _tagStack.Pop();
+                if (lastTag.Name == findedTag.Name)
+                {
+                    // types equal check if open && close
+                    if (lastTag.IsOpening && (!findedTag.IsOpening || findedTag.IsOpenClose))
                     {
-                        if (lastTag.IsOpening && (!findedTag.IsOpening || findedTag.IsOpenClose))
-                        {
-                            var token = BuildToken(lastTag, findedTag);
-                            if (token is not null)
-                                yield return token;
-                        }
-                        else
-                        {
-                            _tagStack.Push(findedTag);
-                        }
+                        var token = BuildTokenOrNull(lastTag, findedTag);
+                        if (token is not null)
+                            yield return token;
                     }
                     else
-                    {
-                        if (!findedTag.IsOpening && !findedTag.IsOpenClose)
-                        {
-                            _tagStack.Push(lastTag);
-                        }
-                        else
-                        {
-                            
-                            _tagStack.Push(findedTag);
-                        }
-                    }
+                        // two open or close in a row -> use second opener and first closer
+                        PushIfOpened(findedTag);
                 }
                 else
                 {
-                    // Закрывающие не кладем
-                    if (findedTag.IsOpening)
+                    // tags different -> closing = cross
+                    if (!findedTag.IsOpening && !findedTag.IsOpenClose)
+                    {
+                        _tagStack.Push(lastTag);
                         _tagStack.Push(findedTag);
+                    }
+                    else 
+                    {
+                        // check if possible incapsulate
+                        var currentMark = findedTag.Mark;
+                        var lastMark = lastTag.Mark;
+                        if (lastMark != Marks.Italic && lastMark != currentMark)
+                        {
+                            _tagStack.Push(findedTag);
+                        }
+                    }
                 }
-                i++;
             }
+            else
+                PushIfOpened(findedTag);
+            i++;
         }
+        foreach (var token in BuildTokensFromStack(_text.Length))
+        {
+            yield return token;
+        }
+    }
+
+    private IEnumerable<Token> BuildTokensFromStack(int lineEnd)
+    {
+        while (_tagStack.Count > 0)
+        {
+            var current = _tagStack.Pop();
+            if (current.Mark == Marks.Header || current.Mark == Marks.List)
+            {
+                var token = BuildTokenOrNull(current, new PositionedTag(lineEnd+1, current.Mark, false));
+                if (token is not null)
+                    yield return token;
+            }
+            
+        }
+    }
+
+    private void PushIfOpened(PositionedTag findedTag)
+    {
+        if (findedTag.IsOpening)
+            _tagStack.Push(findedTag);
     }
 
     private PositionedTag? FindTag(int index)
     {
         foreach (var mark in Marks.AllMarks)
         {
-            var tag = GetPositionedTag(index, mark);
+            var tag = GetPositionedTagOrNull(index, mark);
             if (tag is not null) 
                 return tag;
         }
@@ -95,7 +132,7 @@ public class TokenParser
     
     #region GetPositionedTag
     
-    private PositionedTag? GetPositionedTag(int index, string mark)
+    private PositionedTag? GetPositionedTagOrNull(int index, string mark)
     {
         var isOpening = CheckByMark(index, mark, true);
         var isClosing = CheckByMark(index, mark, false);
@@ -106,7 +143,7 @@ public class TokenParser
         if (isOpening)
             return new PositionedTag(index, mark, isOpening:isOpening);
         if (isClosing)
-            return new PositionedTag(index, mark, isOpening:!isOpening);
+            return new PositionedTag(index, mark, isOpening:isOpening);
         
         return null;
     }
@@ -162,13 +199,13 @@ public class TokenParser
     
     #endregion
 
-    private Token? BuildToken(PositionedTag startTag, PositionedTag endTag)
+    private Token? BuildTokenOrNull(PositionedTag startTag, PositionedTag endTag)
     {
-        var mark = Marks.GetMarkByTagName(startTag.Name);
+        var mark = startTag.Mark;
         var start = startTag.Position;
-        var end = endTag.Position + mark.Length;
+        var end = endTag.Position + mark.Length - 2 *  Marks.AfterMarkSpace(mark);
                     
-        var content = _text.Substring(start + mark.Length, endTag.Position - start - mark.Length);
+        var content = _text.Substring(start + mark.Length + Marks.AfterMarkSpace(mark), endTag.Position - start - mark.Length - 2 * Marks.AfterMarkSpace(mark));
         
         if (!_validator.IsContentAcceptable(content) || _validator.IsSplittingWords(start, end))
         {
@@ -181,11 +218,31 @@ public class TokenParser
             start,
             end
         );
-        return token;
-        // _allFindedTokens.Add(token);
-        // if (SolveOverllaping(start, end))
-        //     return token;
-        // return null;
+        
+        // возможно рудимент
+        _allFindedTokens.Add(token);
+        if (!SolveOverllaping(start, end))
+            return token;
+        return null;
+    }
+    
+    private bool SolveOverllaping(int start, int end)
+    {
+        var isOverlapping = false;
+        foreach (var token in _allFindedTokens)
+        {
+            if (
+                end > token.EndPosition
+                && token.StartPosition < start && start < token.EndPosition
+                || token.StartPosition < end && end < token.EndPosition
+                                             && start < token.StartPosition
+            )
+            {
+                _tokens.Remove(token);
+                isOverlapping = true;
+            }
+        }
+        return isOverlapping;
     }
     
     # region commented
@@ -329,44 +386,4 @@ public class TokenParser
     }
     */
     #endregion
-    
-    private bool SolveOverllaping(int start, int end)
-    {
-        var overlapping = GetOverlappingTokens(start, end);
-        if (!overlapping.Any())
-        {
-            return true;
-        }
-        else
-        {
-            ClearOverlappingTokens(overlapping);
-            return false;
-        }
-    }
-    
-    private IEnumerable<Token> GetOverlappingTokens(int start, int end)
-    {
-        var overlappingTokens = new List<Token>();
-        foreach (var token in _allFindedTokens)
-        {
-            if (
-                end > token.EndPosition
-                && token.StartPosition < start && start < token.EndPosition
-                || token.StartPosition < end && end < token.EndPosition
-                && start < token.StartPosition
-            )
-            {
-                overlappingTokens.Add(token);
-            }
-        }
-        return overlappingTokens;
-    }
-
-    private void ClearOverlappingTokens(IEnumerable<Token> toDelete)
-    {
-        foreach (var tokenToRemove in toDelete)
-        {
-            _tokens.Remove(tokenToRemove);
-        }
-    }
 }
