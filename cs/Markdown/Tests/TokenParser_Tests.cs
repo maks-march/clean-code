@@ -112,6 +112,15 @@ class TokenParser_Tests
             new Token[] { }
         ).SetName("Numbers aren't tagged");
         yield return new TestCaseData(
+            "_нач_ало се_ред_ина ко_нец_",
+            new Token[]
+            {
+                new Token(Marks.Italic, "нач", 0, 5),
+                new Token(Marks.Italic, "ред", 11, 16),
+                new Token(Marks.Italic, "нец", 22, 27),
+            }
+        ).SetName("Parts of words");
+        yield return new TestCaseData(
             "эти__ подчерки__ не считаются и эти __подчерки __не считаются",
             new Token[] { }
         ).SetName("Spaces after/before bold mark");
