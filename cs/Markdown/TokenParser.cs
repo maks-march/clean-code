@@ -1,214 +1,226 @@
-using System.Collections;
+using Markdown.Data;
 
-namespace Markdown
+namespace Markdown;
+
+public class TokenParser
 {
-    public class TokenParser
+    private List<Token> _tokens;
+    private string _text;
+    private ParserValidator _validator;
+    private Stack<PositionedTag> _stackOfTags;
+
+    public TokenParser(string text = "")
     {
-        private List<Token> _tokens;
-        private HashSet<Token> _allFindedTokens;
-        private string _text;
-        private ParserValidator _validator;
+        _text = text;
+        _validator = new (text);
+        _tokens = new ();
+        _stackOfTags = new ();
+    }
+    
+    public IEnumerable<Token> ParseTokens(string input, string outerTokenMark = "")
+    {
+        _text = input;
+        _validator = new ParserValidator(input);
+        _tokens = new List<Token>();
+        _stackOfTags = new Stack<PositionedTag>();
 
-        public TokenParser(string text = "")
-        {
-            this._text = text;
-            _validator = new ParserValidator(text);
-            _tokens = new List<Token>();
-            _allFindedTokens = new HashSet<Token>();
-        }
+        _tokens.AddRange(FindAllTokens());
         
-        public IEnumerable<Token> ParseTokens(string input, string outerTokenMark = "")
+        _tokens.Sort((x, y) => x.StartPosition.CompareTo(y.StartPosition));
+        return _tokens;
+    }
+
+    private IEnumerable<Token> FindAllTokens()
+    {
+        for (int i = 0; i < _text.Length; i++)
         {
-            this._text = input;
-            _validator = new ParserValidator(input);
-            _tokens = new List<Token>();
-            _allFindedTokens = new HashSet<Token>();
-            
-            AddHeaderTokens();
-            AddListTokens();
-            AddBoldTokens(outerTokenMark);
-            AddItalicTokens(outerTokenMark);
-            
-            _tokens.Sort((x, y) => x.StartPosition.CompareTo(y.StartPosition));
-            return _tokens;
-        }
-        
-        private void AddHeaderTokens(string outerTokenMark = "")
-        {
-            _tokens.AddRange(FindParagraphTokens(Marks.Header));
-        }
-        
-        private void AddListTokens(string outerTokenMark = "")
-        {
-            _tokens.AddRange(FindParagraphTokens(Marks.List));
-        }
-        
-        private void AddBoldTokens(string outerTokenMark)
-        {
-            if (outerTokenMark != Marks.Italic && outerTokenMark != Marks.Bold)
+            if (_text[i] == '\n')
             {
-                _tokens.AddRange(FindTokens(
-                    (i, isOpeningTag) => _text[i] == '_' && _text[i+1] == '_' && _validator.IsMarkCorrect(i, isOpeningTag, Marks.Bold.Length),
-                    Marks.Bold
-                ));
-            }
-        }
-        
-        private void AddItalicTokens(string outerTokenMark)
-        {
-            if (outerTokenMark != Marks.Italic)
-            {
-                _tokens.AddRange(FindTokens(
-                    (i, isOpeningTag) => _text[i] == '_' && !_validator.IsDoubleUnderscore(i) && _validator.IsMarkCorrect(i, isOpeningTag, Marks.Italic.Length),
-                    Marks.Italic
-                ));
-            }
-        }
-
-        private IEnumerable<Token> FindTokens(Func<int, bool, bool> checkMark, string mark)
-        {
-            var stack = new Stack<int>();
-
-            for (int i = 0; i < _text.Length+1 - mark.Length; i++)
-            {
-                var isOpeningTag = stack.Count == 0;
-
-                if (checkMark(i, isOpeningTag))
+                foreach (var token in BuildTokensFromStack(i))
                 {
-                    if (stack.Count > 0)
+                    yield return token;
+                }
+                continue;
+            }
+            
+            var findedTag = FindTag(i);
+            if (findedTag == null)
+                continue;
+            
+            if (_stackOfTags.Count > 0)
+            {
+                var lastTag = _stackOfTags.Pop();
+                if (lastTag.Name == findedTag.Name)
+                {
+                    if (CheckOuterToken())
+                        continue;
+                    
+                    if (lastTag.IsOpening && (!findedTag.IsOpening || findedTag.IsOpenClose))
                     {
-                        var start = stack.Pop();
-                        var end = i + mark.Length;
-                        
-                        var content = _text.Substring(start + mark.Length, i - start - mark.Length);
-                        
-                        if (!_validator.IsContentAcceptable(content) || _validator.IsSplittingWords(start, end))
-                        {
-                            continue;
-                        }
-                        var htmlContent = Md.GenerateHtml(content, new TokenParser().ParseTokens(content, mark));
-                        var token = new Token(
-                            HtmlTagFactory.BuildTag(mark),
-                            htmlContent,
-                            start,
-                            end
-                        );
-                        
-                        _allFindedTokens.Add(token);
-                        if (SolveOverllaping(start, end))
+                        var token = BuildTokenOrNull(lastTag, findedTag);
+                        if (token is not null)
                             yield return token;
                     }
                     else
                     {
-                        stack.Push(i);
+                        if (lastTag.Name == TagNames.Header || lastTag.Name == TagNames.List)
+                            _stackOfTags.Push(lastTag);
+                        PushIfOpened(findedTag);
                     }
-                    i++;
                 }
-            }
-        }
-        
-        private IEnumerable<Token> FindParagraphTokens(string mark)
-        {
-            // Обрабатываем текст построчно для заголовков
-            int lineStart = 0;
-        
-            for (int i = 0; i < _text.Length; i++)
-            {
-                if (_text[i] == '\n' || i == _text.Length - 1)
+                else
                 {
-                    // Определяем конец строки
-                    int lineEnd = (i == _text.Length - 1) ? i + 1 : i;
-                    foreach (var token in ParseLineToTokens(lineStart, lineEnd, mark))
-                        yield return token;
-                
-                    lineStart = i + 1;
+                    
+                    _stackOfTags.Push(lastTag);
+                    _stackOfTags.Push(findedTag);
                 }
-            }
-        
-            // Обрабатываем последнюю строку, если текст не заканчивается \n
-            foreach (var token in ParseLineToTokens(lineStart, _text.Length, mark))
-                yield return token;
-        }
-
-        private IEnumerable<Token> ParseLineToTokens(int lineStart, int lineEnd, string mark)
-        {
-            int lineLength = lineEnd - lineStart;
-                
-            if (lineLength > 0)
-            {
-                foreach (var token in FindTokensInLine(lineStart, lineEnd, mark))
-                {
-                    _allFindedTokens.Add(token);
-                    if (SolveOverllaping(token.StartPosition, token.EndPosition))
-                        yield return token;
-                }
-            }
-        }
-        
-        private IEnumerable<Token> FindTokensInLine(int lineStart, int lineEnd, string mark)
-        {
-            // Если есть # и пробел
-            int pos = lineStart;
-            while (pos < lineEnd - 1 && _text[pos].ToString() != mark && char.IsWhiteSpace(_text[pos+1]))
-            {
-                pos++;
-            }
-            
-            if (pos < lineEnd && _text[pos].ToString() == mark)
-            {
-                // Пропускаем пробел после #
-                pos++;
-            
-                string content = _text.Substring(pos, lineEnd - pos).Trim();
-                var htmlContent = Md.GenerateHtml(content, new TokenParser().ParseTokens(content, mark));
-
-                yield return new Token(
-                    HtmlTagFactory.BuildTag(mark),
-                    htmlContent,
-                    pos - 1,
-                    lineEnd
-                    );
-            }
-        }
-        
-        private bool SolveOverllaping(int start, int end)
-        {
-            var overlapping = GetOverlappingTokens(start, end);
-            if (!overlapping.Any())
-            {
-                return true;
             }
             else
-            {
-                ClearOverlappingTokens(overlapping);
-                return false;
-            }
+                PushIfOpened(findedTag);
         }
-        
-        private IEnumerable<Token> GetOverlappingTokens(int start, int end)
+        foreach (var token in BuildTokensFromStack(_text.Length))
         {
-            var overlappingTokens = new List<Token>();
-            foreach (var token in _allFindedTokens)
-            {
-                if (
-                    end > token.EndPosition
-                    && token.StartPosition < start && start < token.EndPosition
-                    || token.StartPosition < end && end < token.EndPosition
-                    && start < token.StartPosition
-                )
-                {
-                    overlappingTokens.Add(token);
-                }
-            }
-            return overlappingTokens;
+            yield return token;
         }
+    }
 
-        private void ClearOverlappingTokens(IEnumerable<Token> toDelete)
+    private bool CheckOuterToken()
+    {
+        if (_stackOfTags.Count == 0)
+            return false;
+        var outerTag = _stackOfTags.Pop();
+        _stackOfTags.Push(outerTag);
+        if (outerTag.Name == TagNames.Em)
         {
-            foreach (var tokenToRemove in toDelete)
+            return true;
+        }
+        return false;
+    }
+
+    private IEnumerable<Token> BuildTokensFromStack(int lineEnd)
+    {
+        while (_stackOfTags.Count > 0)
+        {
+            var current = _stackOfTags.Pop();
+            if (current.Mark == Marks.Header || current.Mark == Marks.List)
             {
-                _tokens.Remove(tokenToRemove);
+                var token = BuildTokenOrNull(current, new PositionedTag(lineEnd, current.Mark, false));
+                if (token is not null)
+                    yield return token;
             }
         }
     }
+
+    private Token? BuildTokenOrNull(PositionedTag startTag, PositionedTag endTag)
+    {
+        var mark = startTag.Mark;
+        var start = startTag.Position;
+        var end = endTag.Position;
+
+        if (end - start < 2 || startTag.Name != endTag.Name)
+            return null;
+                
+        var content = _text.Substring(start + mark.Length + Marks.AfterMarkSpace(mark), endTag.Position - start - mark.Length - Marks.AfterMarkSpace(mark));
+        
+        if (!_validator.IsContentAcceptable(content, mark) || _validator.IsSplittingWords(start, end + mark.Length))
+        {
+            return null;
+        }
+        
+        var token = new Token(
+            TagFactory.BuildTag(mark),
+            start,
+            end
+        );
+        return token;
+    }
+    
+    private void PushIfOpened(PositionedTag findedTag)
+    {
+        if (findedTag.IsOpening)
+            _stackOfTags.Push(findedTag);
+    }
+
+    private PositionedTag? FindTag(int index)
+    {
+        foreach (var mark in Marks.AllMarks)
+        {
+            var tag = GetPositionedTagOrNull(index, mark);
+            if (tag is not null) 
+                return tag;
+        }
+
+        return null;
+    }
+    
+    #region GetPositionedTag
+    
+    private PositionedTag? GetPositionedTagOrNull(int index, string mark)
+    {
+        var isOpening = CheckByMark(index, mark, true);
+        var isClosing = CheckByMark(index, mark, false);
+        if (isOpening && isClosing)
+        {
+            return new PositionedTag(index, mark, isOpenClose:true);
+        }
+        if (isOpening)
+            return new PositionedTag(index, mark, isOpening:isOpening);
+        if (isClosing)
+            return new PositionedTag(index, mark, isOpening:isOpening);
+        
+        return null;
+    }
+
+    private bool CheckByMark(int index, string mark, bool isOpening)
+    {
+        switch (mark)
+        {
+            case Marks.Bold:
+                return CheckMarkForBold(index, isOpening);
+            case Marks.Italic:
+                return CheckMarkForItalic(index, isOpening);
+            case Marks.Header:
+                return CheckMarkForHeader(index, isOpening);
+            case Marks.List:
+                return CheckMarkForList(index, isOpening);
+            default:
+                return false;
+        }
+    }
+
+    private bool CheckMarkForBold(int index, bool isOpening)
+    {
+        return index + 1 < _text.Length
+               && _text[index] == '_'
+               && _text[index + 1] == '_'
+               && _validator.IsMarkCorrect(index, isOpening, Marks.Bold.Length);
+    }
+    
+    private bool CheckMarkForItalic(int index, bool isOpening)
+    {
+        return index < _text.Length
+               && _text[index] == '_'
+               && !_validator.IsDoubleUnderscore(index)
+               && _validator.IsMarkCorrect(index, isOpening, Marks.Italic.Length);
+    }
+    
+    private bool CheckMarkForHeader(int index, bool isOpening)
+    {
+        return isOpening
+               && index + 1 < _text.Length
+               && _text[index].ToString() == Marks.Header
+               && char.IsWhiteSpace(_text[index + 1])
+               && !_validator.IsScreened(index);
+    }
+    
+    private bool CheckMarkForList(int index, bool isOpening)
+    {
+        return isOpening 
+               && index + 1 < _text.Length
+               && _text[index].ToString() == Marks.List
+               && char.IsWhiteSpace(_text[index+1])
+               && !_validator.IsScreened(index);
+    }
+    
+    #endregion
 }
