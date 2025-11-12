@@ -1,4 +1,4 @@
-namespace Markdown;
+namespace Markdown.Data;
 
 public static class Marks
 {
@@ -7,7 +7,7 @@ public static class Marks
     public const string Header = "#";
     public const string List = "-";
 
-    public static IEnumerable<string> AllMarks = new[]
+    public static readonly IEnumerable<string> AllMarks = new[]
     {
         Bold,
         Italic,

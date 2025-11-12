@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using Markdown.Data;
 
 namespace Markdown;
 
@@ -47,27 +48,6 @@ public class Md
         }
         mergedText.Append(text.Substring(prevPosition, text.Length - prevPosition));
         return mergedText.ToString();
-    }
-
-    public static string GenerateHtmlOld(string text, IEnumerable<Token> tokens)
-    {
-        var mergedText = new StringBuilder();
-        var prevPosition = 0;
-        var nextPositionMin = -1;
-        foreach (var token in tokens)
-        {
-            var currentPosition = token.StartPosition;
-            if (currentPosition < nextPositionMin)
-            {
-                continue;
-            }
-            mergedText.Append(text.Substring(prevPosition,currentPosition-prevPosition));
-            mergedText.Append(token.ToString());
-            prevPosition = token.EndPosition;
-            nextPositionMin = token.EndPosition;
-        }
-        mergedText.Append(text.Substring(prevPosition));
-        return mergedText.ToString();        
     }
 }
 

@@ -1,22 +1,20 @@
-using System.Collections;
+using Markdown.Data;
 
 namespace Markdown;
 
 public class TokenParser
 {
     private List<Token> _tokens;
-    private HashSet<Token> _allFindedTokens;
     private string _text;
     private ParserValidator _validator;
-    private Stack<PositionedTag> _tagStack;
+    private Stack<PositionedTag> _stackOfTags;
 
     public TokenParser(string text = "")
     {
         _text = text;
         _validator = new (text);
         _tokens = new ();
-        _allFindedTokens = new ();
-        _tagStack = new ();
+        _stackOfTags = new ();
     }
     
     public IEnumerable<Token> ParseTokens(string input, string outerTokenMark = "")
@@ -24,8 +22,7 @@ public class TokenParser
         _text = input;
         _validator = new ParserValidator(input);
         _tokens = new List<Token>();
-        _allFindedTokens = new HashSet<Token>();
-        _tagStack = new Stack<PositionedTag>();
+        _stackOfTags = new Stack<PositionedTag>();
 
         _tokens.AddRange(FindAllTokens());
         
@@ -50,13 +47,14 @@ public class TokenParser
             if (findedTag == null)
                 continue;
             
-            // что-то уже лежит
-            if (_tagStack.Count > 0)
+            if (_stackOfTags.Count > 0)
             {
-                var lastTag = _tagStack.Pop();
+                var lastTag = _stackOfTags.Pop();
                 if (lastTag.Name == findedTag.Name)
                 {
-                    // types equal check if open && close
+                    if (CheckOuterToken())
+                        continue;
+                    
                     if (lastTag.IsOpening && (!findedTag.IsOpening || findedTag.IsOpenClose))
                     {
                         var token = BuildTokenOrNull(lastTag, findedTag);
@@ -64,18 +62,17 @@ public class TokenParser
                             yield return token;
                     }
                     else
-                        // two open or close in a row -> use second opener and first closer
+                    {
                         if (lastTag.Name == TagNames.Header || lastTag.Name == TagNames.List)
-                            _tagStack.Push(lastTag);
+                            _stackOfTags.Push(lastTag);
                         PushIfOpened(findedTag);
+                    }
                 }
                 else
                 {
-                    if (lastTag.Mark != Marks.Italic)
-                    {
-                        _tagStack.Push(lastTag);
-                        _tagStack.Push(findedTag);
-                    }
+                    
+                    _stackOfTags.Push(lastTag);
+                    _stackOfTags.Push(findedTag);
                 }
             }
             else
@@ -87,25 +84,61 @@ public class TokenParser
         }
     }
 
+    private bool CheckOuterToken()
+    {
+        if (_stackOfTags.Count == 0)
+            return false;
+        var outerTag = _stackOfTags.Pop();
+        _stackOfTags.Push(outerTag);
+        if (outerTag.Name == TagNames.Em)
+        {
+            return true;
+        }
+        return false;
+    }
+
     private IEnumerable<Token> BuildTokensFromStack(int lineEnd)
     {
-        while (_tagStack.Count > 0)
+        while (_stackOfTags.Count > 0)
         {
-            var current = _tagStack.Pop();
+            var current = _stackOfTags.Pop();
             if (current.Mark == Marks.Header || current.Mark == Marks.List)
             {
                 var token = BuildTokenOrNull(current, new PositionedTag(lineEnd, current.Mark, false));
                 if (token is not null)
                     yield return token;
             }
-            
         }
     }
 
+    private Token? BuildTokenOrNull(PositionedTag startTag, PositionedTag endTag)
+    {
+        var mark = startTag.Mark;
+        var start = startTag.Position;
+        var end = endTag.Position;
+
+        if (end - start < 2 || startTag.Name != endTag.Name)
+            return null;
+                
+        var content = _text.Substring(start + mark.Length + Marks.AfterMarkSpace(mark), endTag.Position - start - mark.Length - Marks.AfterMarkSpace(mark));
+        
+        if (!_validator.IsContentAcceptable(content, mark) || _validator.IsSplittingWords(start, end + mark.Length))
+        {
+            return null;
+        }
+        
+        var token = new Token(
+            TagFactory.BuildTag(mark),
+            start,
+            end
+        );
+        return token;
+    }
+    
     private void PushIfOpened(PositionedTag findedTag)
     {
         if (findedTag.IsOpening)
-            _tagStack.Push(findedTag);
+            _stackOfTags.Push(findedTag);
     }
 
     private PositionedTag? FindTag(int index)
@@ -176,7 +209,8 @@ public class TokenParser
         return isOpening
                && index + 1 < _text.Length
                && _text[index].ToString() == Marks.Header
-               && char.IsWhiteSpace(_text[index + 1]);
+               && char.IsWhiteSpace(_text[index + 1])
+               && !_validator.IsScreened(index);
     }
     
     private bool CheckMarkForList(int index, bool isOpening)
@@ -184,196 +218,9 @@ public class TokenParser
         return isOpening 
                && index + 1 < _text.Length
                && _text[index].ToString() == Marks.List
-               && char.IsWhiteSpace(_text[index+1]);
+               && char.IsWhiteSpace(_text[index+1])
+               && !_validator.IsScreened(index);
     }
     
-    #endregion
-
-    private Token? BuildTokenOrNull(PositionedTag startTag, PositionedTag endTag)
-    {
-        var mark = startTag.Mark;
-        var start = startTag.Position;
-        var end = endTag.Position;
-                    
-        var content = _text.Substring(start + mark.Length + Marks.AfterMarkSpace(mark), endTag.Position - start - mark.Length - Marks.AfterMarkSpace(mark));
-        
-        if (!_validator.IsContentAcceptable(content, mark) || _validator.IsSplittingWords(start, end + mark.Length))
-        {
-            return null;
-        }
-        
-        var token = new Token(
-            TagFactory.BuildTag(mark),
-            content,
-            start,
-            end
-        );
-        
-        // возможно рудимент
-        _allFindedTokens.Add(token);
-        if (!SolveOverllaping(start, end))
-            return token;
-        return null;
-    }
-    
-    private bool SolveOverllaping(int start, int end)
-    {
-        var isOverlapping = false;
-        foreach (var token in _allFindedTokens)
-        {
-            if (
-                end > token.EndPosition
-                && token.StartPosition < start && start < token.EndPosition
-                || token.StartPosition < end && end < token.EndPosition
-                                             && start < token.StartPosition
-            )
-            {
-                _tokens.Remove(token);
-                isOverlapping = true;
-            }
-        }
-        return isOverlapping;
-    }
-    
-    # region commented
-    /*
-    private void AddHeaderTokens(string outerTokenMark = "")
-    {
-        _tokens.AddRange(FindParagraphTokens(Marks.Header));
-    }
-    
-    private void AddListTokens(string outerTokenMark = "")
-    {
-        _tokens.AddRange(FindParagraphTokens(Marks.List));
-    }
-    
-    private void AddBoldTokens(string outerTokenMark)
-    {
-        if (outerTokenMark != Marks.Italic && outerTokenMark != Marks.Bold)
-        {
-            _tokens.AddRange(FindTokens(
-                (i, isOpeningTag) => _text[i] == '_' && _text[i+1] == '_' && _validator.IsMarkCorrect(i, isOpeningTag, Marks.Bold.Length),
-                Marks.Bold
-            ));
-        }
-    }
-    private void AddItalicTokens(string outerTokenMark)
-    {
-        if (outerTokenMark != Marks.Italic)
-        {
-            _tokens.AddRange(FindTokens(
-                (i, isOpeningTag) => _text[i] == '_' && !_validator.IsDoubleUnderscore(i) && _validator.IsMarkCorrect(i, isOpeningTag, Marks.Italic.Length),
-                Marks.Italic
-            ));
-        }
-    }
-    
-
-    private IEnumerable<Token> FindTokens(Func<int, bool, bool> checkMark, string mark)
-    {
-        var stack = new Stack<int>();
-
-        for (int i = 0; i < _text.Length+1 - mark.Length; i++)
-        {
-            var isOpeningTag = stack.Count == 0;
-
-            if (checkMark(i, isOpeningTag))
-            {
-                if (stack.Count > 0)
-                {
-                    var start = stack.Pop();
-                    var end = i + mark.Length;
-                    
-                    var content = _text.Substring(start + mark.Length, i - start - mark.Length);
-                    
-                    if (!_validator.IsContentAcceptable(content) || _validator.IsSplittingWords(start, end))
-                    {
-                        continue;
-                    }
-                    var htmlContent = Md.GenerateHtml(content, new TokenParser().ParseTokens(content, mark));
-                    var token = new Token(
-                        TagFactory.BuildTag(mark),
-                        htmlContent,
-                        start,
-                        end
-                    );
-                    
-                    _allFindedTokens.Add(token);
-                    if (SolveOverllaping(start, end))
-                        yield return token;
-                }
-                else
-                {
-                    stack.Push(i);
-                }
-                i++;
-            }
-        }
-    }
-    
-    private IEnumerable<Token> FindParagraphTokens(string mark)
-    {
-        // Обрабатываем текст построчно для заголовков
-        int lineStart = 0;
-    
-        for (int i = 0; i < _text.Length; i++)
-        {
-            if (_text[i] == '\n' || i == _text.Length - 1)
-            {
-                // Определяем конец строки
-                int lineEnd = (i == _text.Length - 1) ? i + 1 : i;
-                foreach (var token in ParseLineToTokens(lineStart, lineEnd, mark))
-                    yield return token;
-            
-                lineStart = i + 1;
-            }
-        }
-    
-        // Обрабатываем последнюю строку, если текст не заканчивается \n
-        foreach (var token in ParseLineToTokens(lineStart, _text.Length, mark))
-            yield return token;
-    }
-
-    private IEnumerable<Token> ParseLineToTokens(int lineStart, int lineEnd, string mark)
-    {
-        int lineLength = lineEnd - lineStart;
-            
-        if (lineLength > 0)
-        {
-            foreach (var token in FindTokensInLine(lineStart, lineEnd, mark))
-            {
-                _allFindedTokens.Add(token);
-                if (SolveOverllaping(token.StartPosition, token.EndPosition))
-                    yield return token;
-            }
-        }
-    }
-    
-    private IEnumerable<Token> FindTokensInLine(int lineStart, int lineEnd, string mark)
-    {
-        // Если есть # и пробел
-        int pos = lineStart;
-        while (pos < lineEnd - 1 && _text[pos].ToString() != mark && char.IsWhiteSpace(_text[pos+1]))
-        {
-            pos++;
-        }
-        
-        if (pos < lineEnd && _text[pos].ToString() == mark)
-        {
-            // Пропускаем пробел после #
-            pos++;
-        
-            string content = _text.Substring(pos, lineEnd - pos).Trim();
-            var htmlContent = Md.GenerateHtml(content, new TokenParser().ParseTokens(content, mark));
-
-            yield return new Token(
-                TagFactory.BuildTag(mark),
-                htmlContent,
-                pos - 1,
-                lineEnd
-                );
-        }
-    }
-    */
     #endregion
 }

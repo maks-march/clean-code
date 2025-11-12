@@ -1,4 +1,5 @@
 namespace Markdown;
+using Markdown.Data;
 
 public class ParserValidator
 {
@@ -11,20 +12,22 @@ public class ParserValidator
     
     public bool IsMarkCorrect(int startIndex, bool isOpening, int markLength = 1)
     {
-        var isScreened = (startIndex > 0 && _text[startIndex - 1] == '\\') 
-                         && (startIndex > 1 && _text[startIndex - 2] != '\\' || startIndex == 1);
+        var isScreened = IsScreened(startIndex);
         if (isOpening)
         {
             return !isScreened 
                    && startIndex + markLength < _text.Length 
                    && _text[startIndex + markLength] != ' ';
         }
-        else
-        {
-            return !isScreened 
-                   && startIndex > 0
-                   && _text[startIndex - 1] != ' ';
-        }
+        return !isScreened 
+               && startIndex > 0
+               && _text[startIndex - 1] != ' ';
+    }
+
+    public bool IsScreened(int index)
+    {
+        return (index > 0 && _text[index - 1] == '\\') 
+            && (index > 1 && _text[index - 2] != '\\' || index == 1);
     }
 
     public bool IsDoubleUnderscore(int index)
@@ -46,7 +49,7 @@ public class ParserValidator
                 && _text[end] != '\n';
     }
     
-    public bool HasNoDigits(string content)
+    private bool HasNoDigits(string content)
     {
         foreach (char c in content)
         {

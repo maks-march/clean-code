@@ -1,4 +1,4 @@
-namespace Markdown;
+namespace Markdown.Data;
 
 public static class TagNames {
     public const string Strong = "strong";
@@ -9,23 +9,23 @@ public static class TagNames {
 
 public static class TagFactory
 {
-    public static Tag Bold => new(TagNames.Strong);
-    public static Tag Italic => new(TagNames.Em);
-    public static Tag Header => new(TagNames.Header);
-    public static Tag List => new(TagNames.List);
+    private static Tag _bold => new(TagNames.Strong);
+    private static Tag _italic => new(TagNames.Em);
+    private static Tag _header => new(TagNames.Header);
+    private static Tag _list => new(TagNames.List);
 
     public static Tag BuildTag(string mark)
     {
         switch (mark)
         {
             case Marks.Header:
-                return Header;
+                return _header;
             case Marks.Bold:
-                return Bold;
+                return _bold;
             case Marks.Italic:
-                return Italic;
+                return _italic;
             case Marks.List:
-                return List;
+                return _list;
             default:
                 throw new ArgumentException("Wrong mark!");
         }

@@ -1,4 +1,4 @@
-namespace Markdown;
+namespace Markdown.Data;
 
 public class Tag
 {
@@ -8,6 +8,6 @@ public class Tag
 
     public Tag(string name)
     {
-        this.Name = name;
+        Name = name;
     }
 }

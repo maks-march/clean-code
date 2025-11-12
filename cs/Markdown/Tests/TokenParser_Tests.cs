@@ -1,5 +1,6 @@
 using FluentAssertions;
 using NUnit.Framework;
+using Markdown.Data;
 
 namespace Markdown.Tests;
 
@@ -24,50 +25,50 @@ class TokenParser_Tests
     {
         yield return new TestCaseData(
             "__main title__\n__some bold text__",
-            new []
+            new Token[]
             {
-                new Token(Marks.Bold, "main title", 0, 12),
-                new Token(Marks.Bold, "some bold text", 15, 31)
+                new (Marks.Bold, 0, 12),
+                new (Marks.Bold, 15, 31)
             }).SetName("Bold text");
         yield return new TestCaseData(
             "_main title_\n_some italic text_",
-            new []
+            new Token[]
             {
-                new Token(Marks.Italic, "main title", 0, 11),
-                new Token(Marks.Italic, "some italic text", 13, 30)
+                new (Marks.Italic, 0, 11),
+                new (Marks.Italic, 13, 30)
             }).SetName("Italic text");
         yield return new TestCaseData(
             "# main title\n# some header text",
-            new []
+            new Token[]
             {
-                new Token(Marks.Header, "main title", 0, 12),
-                new Token(Marks.Header, "some header text", 13, 31)
+                new (Marks.Header, 0, 12),
+                new (Marks.Header, 13, 31)
             }).SetName("Headers text");
         yield return new TestCaseData(
             "- main title\n- some bold text",
-            new []
+            new Token[]
             {
-                new Token(Marks.List, "main title", 0, 12),
-                new Token(Marks.List, "some bold text", 13, 29)
+                new (Marks.List, 0, 12),
+                new (Marks.List, 13, 29)
             }).SetName("List text");
         yield return new TestCaseData(
             "- __bold__\n- _italic_\n- # header",
-            new []
+            new Token[]
             {
-                new Token(Marks.List, "__bold__", 0, 10),
-                new Token(Marks.Bold, "bold", 2, 8),
-                new Token(Marks.List, "_italic_", 11, 21),
-                new Token(Marks.Italic, "italic", 13, 20),
-                new Token(Marks.List, "# header", 22, 32),
-                new Token(Marks.Header, "header", 24, 32)
+                new (Marks.List, 0, 10),
+                new (Marks.Bold, 2, 8),
+                new (Marks.List, 11, 21),
+                new (Marks.Italic, 13, 20),
+                new (Marks.List, 22, 32),
+                new (Marks.Header, 24, 32)
             }
         ).SetName("List with tags inside");
         yield return new TestCaseData(
             "# - 123\n",
-            new []
+            new Token[]
             {
-                new Token(Marks.Header, "- 123", 0, 7),
-                new Token(Marks.List, "123", 2, 7),
+                new (Marks.Header, 0, 7),
+                new (Marks.List, 2, 7),
             }
         ).SetName("List inside header");
     }
@@ -82,21 +83,21 @@ class TokenParser_Tests
     {
         yield return new TestCaseData(
             "# __main title__\n__some bold text__",
-            new []
+            new Token[]
             {
-                new Token(Marks.Header, "__main title__", 0, 16),
-                new Token(Marks.Bold, "main title", 2, 14),
-                new Token(Marks.Bold, "some bold text", 17, 33)
+                new (Marks.Header, 0, 16),
+                new (Marks.Bold, 2, 14),
+                new (Marks.Bold, 17, 33)
             }).SetName("Inside header");
         yield return new TestCaseData(
             "# __main title__\n# __some _bold_ text__",
-            new []
+            new Token[]
             {
-                new Token(Marks.Header, "__main title__", 0, 16),
-                new Token(Marks.Bold, "main title", 2, 14),
-                new Token(Marks.Header, "__some _bold_ text__", 17, 39),
-                new Token(Marks.Bold, "some <em>bold</em> text", 19, 39),
-                new Token(Marks.Italic, "bold", 26, 32)
+                new (Marks.Header, 0, 16),
+                new (Marks.Bold, 2, 14),
+                new (Marks.Header, 17, 39),
+                new (Marks.Bold, 19, 37),
+                new (Marks.Italic, 26, 31)
             }).SetName("Italic inside Bold");
     }
         
@@ -111,10 +112,9 @@ class TokenParser_Tests
     {
         yield return new TestCaseData(
             "внутри _одинарного __двойное__ не_ работает",
-            new []
+            new Token[]
             {
-                new Token(Marks.Italic, "одинарного __двойное__ не", 7, 34),
-                new Token(Marks.Bold, "двойное", 19, 30)
+                new (Marks.Italic, 7, 33)
             }).SetName("Bold inside Italic");
         yield return new TestCaseData(
             "c цифрами_12_3 не считаются выделением __даже1так__",
@@ -124,9 +124,9 @@ class TokenParser_Tests
             "_нач_ало се_ред_ина ко_нец_",
             new Token[]
             {
-                new Token(Marks.Italic, "нач", 0, 5),
-                new Token(Marks.Italic, "ред", 11, 16),
-                new Token(Marks.Italic, "нец", 22, 27),
+                new (Marks.Italic, 0, 4),
+                new (Marks.Italic, 11, 15),
+                new (Marks.Italic, 22, 26),
             }
         ).SetName("Parts of words");
         yield return new TestCaseData(
@@ -150,8 +150,16 @@ class TokenParser_Tests
             new Token[] { }
         ).SetName("Empty text inside tags");
         yield return new TestCaseData(
-            "__пересечения _двойных__ и __одинарных_ подчерков__",
+            "__пересечения _двойных__ и одинарных_",
             new Token[] { }
+        ).SetName("Crossing marks from example");
+        yield return new TestCaseData(
+            "__пересечения _двойных__ и __одинарных_ подчерков__",
+            new Token[]
+            {
+                new (Marks.Bold, 0, 49),
+                new (Marks.Italic, 14, 38)
+            }
         ).SetName("Crossing marks");
         yield return new TestCaseData(
             "_пересечения __двойных_ и _одинарных__ подчерков_",
@@ -161,7 +169,7 @@ class TokenParser_Tests
             @"экран\_ирование\_ и \\__двойное\\__ экрани\рование",
             new Token[]
             {
-                new Token(Marks.Bold, @"двойное\\", 22, 35)
+                new (Marks.Bold,22, 33)
             }
         ).SetName("Shielding marks");
     }
