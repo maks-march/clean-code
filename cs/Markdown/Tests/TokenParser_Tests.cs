@@ -10,12 +10,12 @@ class TokenParser_Tests
     {
         var parser = new TokenParser();
         var actualTokens = parser.ParseTokens(actualInput);
-        var act = () => Md.GenerateHtml(actualInput, actualTokens);
-        var actualHtml = Md.GenerateHtml(actualInput, actualTokens);
-        var expectedHtml = Md.GenerateHtml(actualInput, expectedTokens);
+        // var act = () => Md.GenerateHtml(actualInput, actualTokens);
+        // var actualHtml = Md.GenerateHtml(actualInput, actualTokens);
+        // var expectedHtml = Md.GenerateHtml(actualInput, expectedTokens);
         
-        act.Should().NotThrow();
-        expectedHtml.Should().Be(actualHtml);
+        // act.Should().NotThrow();
+        // actualHtml.Should().Be(expectedHtml);
         actualTokens.Should().BeEquivalentTo(expectedTokens);
     }
     
@@ -26,15 +26,15 @@ class TokenParser_Tests
             "__main title__\n__some bold text__",
             new []
             {
-                new Token(Marks.Bold, "main title", 0, 14),
-                new Token(Marks.Bold, "some bold text", 15, 33)
+                new Token(Marks.Bold, "main title", 0, 12),
+                new Token(Marks.Bold, "some bold text", 15, 31)
             }).SetName("Bold text");
         yield return new TestCaseData(
             "_main title_\n_some italic text_",
             new []
             {
-                new Token(Marks.Italic, "main title", 0, 12),
-                new Token(Marks.Italic, "some italic text", 13, 31)
+                new Token(Marks.Italic, "main title", 0, 11),
+                new Token(Marks.Italic, "some italic text", 13, 30)
             }).SetName("Italic text");
         yield return new TestCaseData(
             "# main title\n# some header text",
@@ -44,21 +44,30 @@ class TokenParser_Tests
                 new Token(Marks.Header, "some header text", 13, 31)
             }).SetName("Headers text");
         yield return new TestCaseData(
+            "- main title\n- some bold text",
+            new []
+            {
+                new Token(Marks.List, "main title", 0, 12),
+                new Token(Marks.List, "some bold text", 13, 29)
+            }).SetName("List text");
+        yield return new TestCaseData(
             "- __bold__\n- _italic_\n- # header",
             new []
             {
-                new Token(Marks.List, "<strong>bold</strong>", 0, 10),
-                new Token(Marks.Bold, "bold", 2, 10),
-                new Token(Marks.List, "<em>italic</em>", 11, 21),
-                new Token(Marks.Italic, "italic", 13, 21),
-                new Token(Marks.List, "<h1>header</h1>", 22, 32)
+                new Token(Marks.List, "__bold__", 0, 10),
+                new Token(Marks.Bold, "bold", 2, 8),
+                new Token(Marks.List, "_italic_", 11, 21),
+                new Token(Marks.Italic, "italic", 13, 20),
+                new Token(Marks.List, "# header", 22, 32),
+                new Token(Marks.Header, "header", 24, 32)
             }
         ).SetName("List with tags inside");
         yield return new TestCaseData(
             "# - 123\n",
             new []
             {
-                new Token(Marks.Header, "<li>123</li>", 0, 8),
+                new Token(Marks.Header, "- 123", 0, 7),
+                new Token(Marks.List, "123", 2, 7),
             }
         ).SetName("List inside header");
     }

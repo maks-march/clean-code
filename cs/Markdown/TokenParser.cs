@@ -69,27 +69,15 @@ public class TokenParser
                 }
                 else
                 {
-                    // tags different -> closing = cross
-                    if (!findedTag.IsOpening && !findedTag.IsOpenClose)
+                    if (lastTag.Mark != Marks.Italic)
                     {
                         _tagStack.Push(lastTag);
                         _tagStack.Push(findedTag);
-                    }
-                    else 
-                    {
-                        // check if possible incapsulate
-                        var currentMark = findedTag.Mark;
-                        var lastMark = lastTag.Mark;
-                        if (lastMark != Marks.Italic && lastMark != currentMark)
-                        {
-                            _tagStack.Push(findedTag);
-                        }
                     }
                 }
             }
             else
                 PushIfOpened(findedTag);
-            i++;
         }
         foreach (var token in BuildTokensFromStack(_text.Length))
         {
@@ -104,7 +92,7 @@ public class TokenParser
             var current = _tagStack.Pop();
             if (current.Mark == Marks.Header || current.Mark == Marks.List)
             {
-                var token = BuildTokenOrNull(current, new PositionedTag(lineEnd+1, current.Mark, false));
+                var token = BuildTokenOrNull(current, new PositionedTag(lineEnd, current.Mark, false));
                 if (token is not null)
                     yield return token;
             }
@@ -193,7 +181,7 @@ public class TokenParser
     {
         return isOpening 
                && index + 1 < _text.Length
-               && _text[index].ToString() == Marks.Header
+               && _text[index].ToString() == Marks.List
                && char.IsWhiteSpace(_text[index+1]);
     }
     
@@ -203,11 +191,11 @@ public class TokenParser
     {
         var mark = startTag.Mark;
         var start = startTag.Position;
-        var end = endTag.Position + mark.Length - 2 *  Marks.AfterMarkSpace(mark);
+        var end = endTag.Position;
                     
-        var content = _text.Substring(start + mark.Length + Marks.AfterMarkSpace(mark), endTag.Position - start - mark.Length - 2 * Marks.AfterMarkSpace(mark));
+        var content = _text.Substring(start + mark.Length + Marks.AfterMarkSpace(mark), endTag.Position - start - mark.Length - Marks.AfterMarkSpace(mark));
         
-        if (!_validator.IsContentAcceptable(content) || _validator.IsSplittingWords(start, end))
+        if (!_validator.IsContentAcceptable(content, mark) || _validator.IsSplittingWords(start, end + mark.Length))
         {
             return null;
         }

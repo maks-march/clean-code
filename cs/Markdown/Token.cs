@@ -5,27 +5,27 @@ namespace Markdown;
 
 public class Token
 {
-    private string value;
     private Tag tag;
     public string Head => tag.OpenTag;
     public string Tail => tag.CloseTag;
-    public int Length => value.Length;
-    
     public int StartPosition { get; }
 
     public int EndPosition { get; }
+    public int SpaceAfterTag => Marks.AfterMarkSpace(Marks.GetMarkByTagName(tag.Name));
+    public int MarkLength => Marks.GetMarkByTagName(tag.Name).Length;
 
-    public int OriginalLength => EndPosition - StartPosition;
+    public int PushForward => 2;
+    public string Content { get; }
 
-    public Token(Tag tag, string value, int start, int end)
+    public Token(Tag tag, string content, int start, int end)
     {
         this.tag = tag;
-        this.value = value;
-        this.StartPosition = start;
-        this.EndPosition = end;
+        Content = content;
+        StartPosition = start;
+        EndPosition = end;
     }
 
-    public Token(string mark, string value, int start, int end) : this(TagFactory.BuildTag(mark), value, start, end)
+    public Token(string mark, string content, int start, int end) : this(TagFactory.BuildTag(mark), content, start, end)
     {
     }
 
@@ -33,7 +33,7 @@ public class Token
     {
         var builder = new StringBuilder();
         builder.Append(Head);
-        builder.Append(value);
+        builder.Append(Content);
         builder.Append(Tail);
         return builder.ToString();
     }

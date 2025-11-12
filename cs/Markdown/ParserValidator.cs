@@ -33,16 +33,17 @@ public class ParserValidator
                || index > 0 && _text[index - 1] == '_';
     }
 
-    public bool IsContentAcceptable(string content)
+    public bool IsContentAcceptable(string content, string mark)
     {
-        return !string.IsNullOrEmpty(content) && HasNoDigits(content);
+        return !string.IsNullOrEmpty(content) && (HasNoDigits(content) || mark == Marks.Header || mark == Marks.List);
     }
 
     public bool IsSplittingWords(int start, int end)
     {
         return start > 0 && _text[start - 1] != ' '
                 && end < _text.Length - 1 &&  _text[end + 1] != ' '
-                && _text.Substring(start, end - start).Contains(' ');
+                && _text.Substring(start, end - start).Contains(' ')
+                && _text[end] != '\n';
     }
     
     public bool HasNoDigits(string content)

@@ -3,7 +3,7 @@ namespace Markdown;
 public static class TagNames {
     public const string Strong = "strong";
     public const string Em = "em";
-    public const string Header = "header";
+    public const string Header = "h1";
     public const string List = "li";
 }
 

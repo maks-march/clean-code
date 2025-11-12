@@ -39,6 +39,10 @@ class Markdown_Tests
     public static IEnumerable<TestCaseData> Render_Source()
     {
         yield return new TestCaseData(
+            "п# з __ж _к_ ж__ з\nп",
+            "п<h1>з <strong>ж <em>к</em> ж</strong> з</h1>\nп"
+        ).SetName("Small text for debugging");
+        yield return new TestCaseData(
             "# Заголовок __с _разными_ символами__",
             "<h1>Заголовок <strong>с <em>разными</em> символами</strong></h1>"
         ).SetName("Simple text");
