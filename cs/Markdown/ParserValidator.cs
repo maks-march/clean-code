@@ -17,11 +17,11 @@ public class ParserValidator
         {
             return !isScreened 
                    && startIndex + markLength < _text.Length 
-                   && _text[startIndex + markLength] != ' ';
+                   && !Char.IsWhiteSpace(_text[startIndex + markLength]);
         }
         return !isScreened 
                && startIndex > 0
-               && _text[startIndex - 1] != ' ';
+               && !Char.IsWhiteSpace(_text[startIndex - 1]);
     }
 
     public bool IsScreened(int index)
@@ -45,7 +45,7 @@ public class ParserValidator
     {
         return start > 0 && _text[start - 1] != ' '
                 && end < _text.Length - 1 &&  _text[end + 1] != ' '
-                && _text.Substring(start, end - start).Contains(' ')
+                && _text.Substring(start, end - start).Any(Char.IsWhiteSpace)
                 && _text[end] != '\n';
     }
     
