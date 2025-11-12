@@ -65,6 +65,8 @@ public class TokenParser
                     }
                     else
                         // two open or close in a row -> use second opener and first closer
+                        if (lastTag.Name == TagNames.Header || lastTag.Name == TagNames.List)
+                            _tagStack.Push(lastTag);
                         PushIfOpened(findedTag);
                 }
                 else

@@ -10,12 +10,12 @@ class TokenParser_Tests
     {
         var parser = new TokenParser();
         var actualTokens = parser.ParseTokens(actualInput);
-        // var act = () => Md.GenerateHtml(actualInput, actualTokens);
-        // var actualHtml = Md.GenerateHtml(actualInput, actualTokens);
-        // var expectedHtml = Md.GenerateHtml(actualInput, expectedTokens);
+        var act = () => Md.GenerateHtml(actualInput, actualTokens);
+        var actualHtml = Md.GenerateHtml(actualInput, actualTokens);
+        var expectedHtml = Md.GenerateHtml(actualInput, expectedTokens);
         
-        // act.Should().NotThrow();
-        // actualHtml.Should().Be(expectedHtml);
+        act.Should().NotThrow();
+        actualHtml.Should().Be(expectedHtml);
         actualTokens.Should().BeEquivalentTo(expectedTokens);
     }
     
@@ -84,17 +84,17 @@ class TokenParser_Tests
             "# __main title__\n__some bold text__",
             new []
             {
-                new Token(Marks.Header, "<strong>main title</strong>", 0, 16),
-                new Token(Marks.Bold, "main title", 2, 16),
-                new Token(Marks.Bold, "some bold text", 17, 35)
+                new Token(Marks.Header, "__main title__", 0, 16),
+                new Token(Marks.Bold, "main title", 2, 14),
+                new Token(Marks.Bold, "some bold text", 17, 33)
             }).SetName("Inside header");
         yield return new TestCaseData(
             "# __main title__\n# __some _bold_ text__",
             new []
             {
-                new Token(Marks.Header, "<strong>main title</strong>", 0, 16),
-                new Token(Marks.Bold, "main title", 2, 16),
-                new Token(Marks.Header, "<strong>some <em>bold</em> text</strong>", 17, 39),
+                new Token(Marks.Header, "__main title__", 0, 16),
+                new Token(Marks.Bold, "main title", 2, 14),
+                new Token(Marks.Header, "__some _bold_ text__", 17, 39),
                 new Token(Marks.Bold, "some <em>bold</em> text", 19, 39),
                 new Token(Marks.Italic, "bold", 26, 32)
             }).SetName("Italic inside Bold");

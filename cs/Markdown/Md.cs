@@ -21,30 +21,30 @@ public class Md
         var outerEnd = text.Length + 3;
         foreach (var token in tokens)
         {
-            if (token.EndPosition > outerEnd)
+            if (token.StartPosition >= outerEnd)
             {
-                mergedText.Append(text.Substring(prevPosition,token.EndPosition - prevPosition - 2));
-                mergedText.Append(token.Tail);
-                prevPosition = token.EndPosition;
+                while (tokenStack.Count > 0)
+                {
+                    var tokenPrev = tokenStack.Pop();
+                    mergedText.Append(text.Substring(prevPosition,tokenPrev.EndPosition - prevPosition));
+                    mergedText.Append(tokenPrev.Tail);
+                    prevPosition = tokenPrev.EndPosition + tokenPrev.Gap(false);
+                }
             }
-            else
-            {
-                mergedText.Append(text.Substring(prevPosition,token.StartPosition-prevPosition));
-                mergedText.Append(token.Head);
-                prevPosition = token.StartPosition + 2;
-                outerEnd = token.EndPosition;
-                tokenStack.Push(token);
-            }
+            mergedText.Append(text.Substring(prevPosition,token.StartPosition-prevPosition));
+            mergedText.Append(token.Head);
+            prevPosition = token.StartPosition + token.Gap(true);
+            outerEnd = token.EndPosition + token.Gap(false);
+            tokenStack.Push(token);
         }
 
         while (tokenStack.Count > 0)
         {
             var token = tokenStack.Pop();
-            mergedText.Append(text.Substring(prevPosition - token.MarkLength,token.EndPosition - prevPosition));
+            mergedText.Append(text.Substring(prevPosition,token.EndPosition - prevPosition));
             mergedText.Append(token.Tail);
-            prevPosition = token.EndPosition + 2;
+            prevPosition = token.EndPosition + token.Gap(false);
         }
-        prevPosition -= 3;
         mergedText.Append(text.Substring(prevPosition, text.Length - prevPosition));
         return mergedText.ToString();
     }

@@ -6,15 +6,26 @@ namespace Markdown;
 public class Token
 {
     private Tag tag;
+    private string mark => Marks.GetMarkByTagName(tag.Name);
     public string Head => tag.OpenTag;
     public string Tail => tag.CloseTag;
     public int StartPosition { get; }
 
     public int EndPosition { get; }
-    public int SpaceAfterTag => Marks.AfterMarkSpace(Marks.GetMarkByTagName(tag.Name));
-    public int MarkLength => Marks.GetMarkByTagName(tag.Name).Length;
+    public int MarkLength => mark.Length;
 
-    public int PushForward => 2;
+    public int Gap(bool isOpened)
+    {
+        if (mark == Marks.Header || mark == Marks.List)
+        {
+            if (isOpened)
+            {
+                return MarkLength + 1;
+            }
+            return 0;
+        }
+        return MarkLength;
+    }
     public string Content { get; }
 
     public Token(Tag tag, string content, int start, int end)
